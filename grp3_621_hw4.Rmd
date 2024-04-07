@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(summarytools)
+library(corrplot)
 ```
 
 ### Importing Datasets
@@ -37,6 +38,36 @@ train_stats = dfSummary(num_insur_dat, stats = c("mean", "sd", "med", "IQR", "mi
 
 view(train_stats)
 ```
+
+```{r}
+cor_matrix = cor(num_insur_dat, use = "complete.obs")
+
+corrplot(cor_matrix, method = "circle", type = "upper", order = "hclust",
+         tl.col = "black", tl.srt = 45, 
+         addCoef.col = "black")
+```
+
+### **Weak Correlations:**
+
+-   **`INDEX` with any variable:** The correlations are very close to 0, meaning no linear relationship. We will remove this
+
+-   **`TRAVTIME` and most variables:** Most correlations with **`TRAVTIME`** (distance to work) are very weak, indicating that the distance to work does not have a strong linear relationship with these variables. We will remove this
+
+-   **Correlations involving `TIF`, `YOJ`, `CAR_AGE` with other variables:** These are weak, indicating limited linear relationships. For example, **`TIF`** (time in force) and **`YOJ`** (years on job) don't strongly correlate with risk indicators like **`CLM_FREQ`** or **`MVR_PTS`**, meaning loyalty or job stability isn't strongly associated with driving risk in a linear manner.
+
+### **Significant Correlations:**
+
+-   **`TARGET_FLAG` and `TARGET_AMT` :** This makes sense as all cars involved in a crash would be charged.
+
+-   **`TARGET_FLAG` and `CLM_FREQ` , `MVR_PTS`:** These moderate correlations suggest that the likelihood of being in a crash is positively associated with the number of claims filed in the past 5 years (**`CLM_FREQ`**) and the motor vehicle record points (**`MVR_PTS`**). These variables could be risky driving behavior that leads to accidents.
+
+-   **`KIDSDRIV` and `HOMEKIDS` :** A moderate to strong positive correlation indicates that the number of driving children (**`KIDSDRIV`**) tends to be higher in homes with more children (**`HOMEKIDS`**). This relationship is expected.
+
+-   **`AGE` and `HOMEKIDS` :** This negative correlation suggests that younger drivers tend to have more children at home.
+
+-   **`AGE` and `CAR_AGE` :** A weak positive correlation indicates older drivers tend to have older cars.
+
+-   **`CLM_FREQ` and `MVR_PTS` :** A moderate positive correlation suggests that drivers with more claims also tend to have more motor vehicle record points. Both are indicators of risky driving behavior.
 
 ## Part 2 - Data Preparation
 
