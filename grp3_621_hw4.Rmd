@@ -1,0 +1,35 @@
+---
+title: "Data 621 HW 4"
+author: 'Group #3'
+date: "2024-04-07"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Insurance Data Analysis
+
+### Packages Used
+
+```{r}
+library(tidyverse)
+```
+
+### Importing Datasets
+
+```{r}
+
+insur_train_raw=read.csv(url("https://raw.githubusercontent.com/sleepysloth12/data621_hw4/main/insurance_training_data.csv"))
+
+insur_test=read.csv(url("https://github.com/sleepysloth12/data621_hw4/raw/main/insurance-evaluation-data.csv"))
+```
+
+## Part 1 - Data Exploration
+
+## Part 2 - Data Preparation
+
+## Part 3 - Build Models
+
+## Part 4 - Select Models
