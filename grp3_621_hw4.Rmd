@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
+library(summarytools)
 ```
 
 ### Importing Datasets
@@ -27,6 +28,15 @@ insur_test=read.csv(url("https://github.com/sleepysloth12/data621_hw4/raw/main/i
 ```
 
 ## Part 1 - Data Exploration
+
+```{r}
+
+num_insur_dat = select_if(insur_train_raw, is.numeric)
+
+train_stats = dfSummary(num_insur_dat, stats = c("mean", "sd", "med", "IQR", "min", "max", "valid", "n.missing"))
+
+view(train_stats)
+```
 
 ## Part 2 - Data Preparation
 
