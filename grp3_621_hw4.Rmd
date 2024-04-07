@@ -17,6 +17,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(summarytools)
 library(corrplot)
+library(caret)
+library(MASS)
 ```
 
 ### Importing Datasets
@@ -70,6 +72,292 @@ corrplot(cor_matrix, method = "circle", type = "upper", order = "hclust",
 -   **`CLM_FREQ` and `MVR_PTS` :** A moderate positive correlation suggests that drivers with more claims also tend to have more motor vehicle record points. Both are indicators of risky driving behavior.
 
 ## Part 2 - Data Preparation
+
+### Removing Weak Correlations
+
+First, I will remove the variables flagged above for weak correlations. These will be `index` , **`TRAVTIME` , `TIF`** , **`YOJ`** , **`CAR_AGE`**
+
+```{r}
+
+insur_train_1= insur_train_raw %>%
+  select(-c(INDEX, TRAVTIME, TIF, YOJ, CAR_AGE))
+```
+
+### Dealing with missing Data
+
+Now I will look for missing data.
+
+```{r}
+missing_data_report = insur_train_1 %>%
+  summarise_all(~sum(is.na(.)))
+
+print(missing_data_report)
+```
+
+After removing those columns that had weak correlations, the only variable that had missing data was the AGE variable, with only 0.1% of missing data (6 missing out of 8155). Since the sample size is large, the amount of missing data is low relative to the sample size, and the distribution of most of the age data is normal, we can use mean imputation to fill in for these missing values.
+
+```{r}
+mean_age = mean(insur_train_1$AGE, na.rm = TRUE)
+
+insur_train_1$AGE[is.na(insur_train_1$AGE)] = mean_age
+
+sum(is.na(insur_train_1$AGE))
+
+```
+
+Now, there is no more missing data.
+
+### Creating New Variables
+
+Now, I will create new variables.
+
+**`CLM_FREQ` and `MVR_PTS`** had correlation between them. We will use PCA to combine **`CLM_FREQ`** and **`MVR_PTS`** into a single component. This approach is particularly useful if wewant to capture the most variance from both variables in a single composite variable.
+
+```{r}
+risk_variables = data.frame(CLM_FREQ = insur_train_1$CLM_FREQ, MVR_PTS = insur_train_1$MVR_PTS)
+
+
+pca_result = prcomp(risk_variables, center = TRUE, scale. = TRUE)
+insur_train_1$PCA_Score = pca_result$x[,1]
+
+insur_train_2 = insur_train_1 %>%
+  select(-c(CLM_FREQ, MVR_PTS))
+```
+
+Given the moderate to strong positive correlation between **`KIDSDRIV`** (the number of driving children) and **`HOMEKIDS`** (the number of children at home), I will calculate proportion of children who drive relative to the total number of children in the household.
+
+```{r}
+insur_train_2 = insur_train_2 %>%
+  mutate(HOMEKIDS = ifelse(HOMEKIDS == 0, NA, HOMEKIDS),
+         Driving_Ratio = KIDSDRIV / HOMEKIDS)%>%
+  select(-c(HOMEKIDS, KIDSDRIV))
+```
+
+### Binning Categorical Variables
+
+There are many categorical variables.
+
+I will start binning them and creating dummy variables.
+
+`is_urban` -1 if urban 0 if else
+
+`is_revoked` - 1 if Yes 0 if else
+
+`is_red_car` - 1 if yes 0 if else
+
+`is_single_parent` - 1 if yes 0 if else
+
+`is_married` - 1 if yes 0 if else
+
+`is_male` - 1 if yes 0 if else
+
+`is_fam_car` - 1 if minivan, suv, 0 if else
+
+`is_higher_ed`  - 1 if bachelors or above 0 if else
+
+`is_commercial` - 1 if commercial 0 if else
+
+`is_profesional` - 1 if professional, doctor, lawyer, manager, 0 if else
+
+```{r}
+#str(insur_train_13)
+
+#unique(insur_train_2$URBANICITY)
+
+insur_train_3 = insur_train_2 %>%
+  mutate(is_urban=ifelse(URBANICITY=="Highly Urban/ Urban", 1 , 0))%>%
+  select(-URBANICITY)
+
+#unique(insur_train_2$REVOKED)
+
+insur_train_4 = insur_train_3 %>%
+  mutate(is_revoked=ifelse(REVOKED=="Yes", 1 , 0))%>%
+  select(-REVOKED)
+
+insur_train_5 = insur_train_4 %>%
+  mutate(is_red_car=ifelse(RED_CAR=="Yes", 1 , 0))%>%
+  select(-RED_CAR)
+
+insur_train_6 = insur_train_5 %>%
+  mutate(is_single_parent=ifelse(PARENT1=="Yes", 1 , 0))%>%
+  select(-PARENT1)
+
+#unique(insur_train_6$MSTATUS)
+
+insur_train_7 = insur_train_6 %>%
+  mutate(is_married=ifelse(MSTATUS=="Yes", 1 , 0))%>%
+  select(-MSTATUS)
+
+#unique(insur_train_6$SEX)
+insur_train_8 = insur_train_7 %>%
+  mutate(is_married=ifelse(SEX=="M", 1 , 0))%>%
+  select(-SEX)
+
+#unique(insur_train_6$CAR_TYPE)
+
+insur_train_9 = insur_train_8 %>%
+  mutate(is_fam_car = ifelse(CAR_TYPE %in% c("Minivan", "z_SUV"), 1, 0)) %>%
+  select(-CAR_TYPE) 
+
+#unique(insur_train_6$EDUCATION)
+
+insur_train_10 = insur_train_9 %>%
+  mutate(is_higher_Ed = ifelse(EDUCATION %in% c("PhD", "Bachelors","Masters"), 1, 0)) %>%
+  select(-EDUCATION) 
+
+insur_train_11 = insur_train_10 %>%
+  mutate(is_commercial=ifelse(CAR_USE=="Commercial", 1 , 0))%>%
+  select(-CAR_USE)
+
+#unique(insur_train_6$JOB)
+
+insur_train_12 = insur_train_11 %>%
+  mutate(is_professional = ifelse(JOB %in% c("Professional", "Manager","Doctor","Lawyer"), 1, 0)) %>%
+  select(-JOB) 
+```
+
+`Driving_Ratio` variable has a lot of missing values, it does not make sense really. I will remove it.
+
+```{r}
+insur_train_13 = insur_train_12 %>%
+  select(-Driving_Ratio)
+```
+
+###  Processing cost data
+
+All cost variables like `INCOME`, `HOME_VAL`, and `BLUEBOOK` are in character form and need ro be processed to numeric.
+
+```{r}
+insur_train_14 = insur_train_13 %>%
+  mutate(
+    INCOME = as.numeric(gsub("[\\$,]", "", INCOME)),
+    HOME_VAL = as.numeric(gsub("[\\$,]", "", HOME_VAL)),
+    BLUEBOOK = as.numeric(gsub("[\\$,]", "", BLUEBOOK)),
+    OLDCLAIM = as.numeric(gsub("[\\$,]", "", OLDCLAIM))
+  )
+
+str(insur_train_14)
+```
+
+### Reanalyzing the Distribution
+
+Now that all of our variable are numerical, let us reanalyze their distribution and see whether or not there is missing data in each.
+
+```{r}
+train_stats_2 = dfSummary(insur_train_14, stats = c("mean", "sd", "med", "IQR", "min", "max", "valid", "n.missing"))
+
+view(train_stats_2)
+```
+
+### Median and Mean Imputation
+
+There are 445 missing values for `income` and 464 missing values for `home_Val`.
+
+I will do median imputation to fill in for these missing values. Median imputation is a more accurate measure than mean imputation for income. For home value, Mean is more accurate (because there is a large concentration of non-homeowners).
+
+```{r}
+median_income = median(insur_train_14$INCOME, na.rm = TRUE)
+
+mean_home_val = mean(insur_train_14$HOME_VAL, na.rm = TRUE)
+
+insur_train_15 = insur_train_14 %>%
+  mutate(
+    INCOME = ifelse(is.na(INCOME), median_income, INCOME),
+    HOME_VAL = ifelse(is.na(HOME_VAL), median_home_val, HOME_VAL)
+  )
+```
+
+###  Log Transform
+
+Due to the wide range and skewedness of some columns, I preformed a Log transform. I also added by 1 to avoid errors with 0.
+
+```{r}
+insur_train_16 = insur_train_15 %>%
+  mutate(
+    log_INCOME = log(INCOME + 1),
+    log_HOME_VAL = log(HOME_VAL + 1),
+    log_BLUEBOOK = log(BLUEBOOK + 1),
+    log_OLDCLAIM = log(OLDCLAIM + 1),
+    log_PCA_Score=log(PCA_Score + 1)
+  )%>%
+  select(-c(INCOME, HOME_VAL, BLUEBOOK, OLDCLAIM, PCA_Score))
+
+train_stats_3 = dfSummary(insur_train_16, stats = c("mean", "sd", "med", "IQR", "min", "max", "valid", "n.missing"))
+
+view(train_stats_3)
+```
+
+### Processing Train Dataset same way as test
+
+```{r}
+
+# Removing Weak Correlations
+insur_test_1 = insur_test %>%
+  dplyr::select(-c(INDEX, TRAVTIME, TIF, YOJ, CAR_AGE))
+
+
+mean_age = mean(insur_test_1$AGE, na.rm = TRUE)
+insur_test_1$AGE[is.na(insur_test_1$AGE)] = mean_age
+
+
+risk_variables_test = data.frame(CLM_FREQ = insur_test_1$CLM_FREQ, MVR_PTS = insur_test_1$MVR_PTS)
+pca_result_test = prcomp(risk_variables_test, center = TRUE, scale. = TRUE)
+insur_test_1$PCA_Score = pca_result_test$x[,1]
+insur_test_2 = insur_test_1 %>%
+  dplyr::select(-c(CLM_FREQ, MVR_PTS))
+
+
+insur_test_3 = insur_test_2 %>%
+  mutate(is_urban = ifelse(URBANICITY == "Highly Urban/ Urban", 1, 0)) %>%
+  mutate(is_revoked = ifelse(REVOKED == "Yes", 1, 0)) %>%
+  mutate(is_red_car = ifelse(RED_CAR == "Yes", 1, 0)) %>%
+  mutate(is_single_parent = ifelse(PARENT1 == "Yes", 1, 0)) %>%
+  mutate(is_married = ifelse(MSTATUS == "Yes", 1, 0)) %>%
+  mutate(is_male = ifelse(SEX == "M", 1, 0)) %>%
+  mutate(is_fam_car = ifelse(CAR_TYPE %in% c("Minivan", "z_SUV"), 1, 0)) %>%
+  mutate(is_higher_Ed = ifelse(EDUCATION %in% c("PhD", "Bachelors", "Masters"), 1, 0)) %>%
+  mutate(is_commercial = ifelse(CAR_USE == "Commercial", 1, 0)) %>%
+  mutate(is_professional = ifelse(JOB %in% c("Professional", "Manager", "Doctor", "Lawyer"), 1, 0)) %>%
+  dplyr::select(-c(URBANICITY, REVOKED, RED_CAR, PARENT1, MSTATUS, SEX, CAR_TYPE, EDUCATION, CAR_USE, JOB))
+
+# Processing Cost Data: Converting to Numeric and Imputing Missing Values
+insur_test_14 = insur_test_3 %>%
+  mutate(
+    INCOME = as.numeric(gsub("[\\$,]", "", INCOME)),
+    HOME_VAL = as.numeric(gsub("[\\$,]", "", HOME_VAL)),
+    BLUEBOOK = as.numeric(gsub("[\\$,]", "", BLUEBOOK)),
+    OLDCLAIM = as.numeric(gsub("[\\$,]", "", OLDCLAIM))
+  )
+
+# Imputation for Missing Values in INCOME and HOME_VAL
+median_income = median(insur_test_14$INCOME, na.rm = TRUE)
+median_home_val = median(insur_test_14$HOME_VAL, na.rm = TRUE)
+
+insur_test_15 = insur_test_14 %>%
+  mutate(
+    INCOME = ifelse(is.na(INCOME), median_income, INCOME),
+    HOME_VAL = ifelse(is.na(HOME_VAL), median_home_val, HOME_VAL)
+  )
+
+# Log Transform
+insur_test_16 = insur_test_15 %>%
+  mutate(
+    log_INCOME = log(INCOME + 1),
+    log_HOME_VAL = log(HOME_VAL + 1),
+    log_BLUEBOOK = log(BLUEBOOK + 1),
+    log_OLDCLAIM = log(OLDCLAIM + 1)
+  ) %>%
+  dplyr::select(-c(INCOME, HOME_VAL, BLUEBOOK, OLDCLAIM))
+
+
+
+```
+
+```{r}
+insur_train_clean=insur_train_16
+
+insur_test_clean=insur_test_16
+```
 
 ## Part 3 - Build Models
 
