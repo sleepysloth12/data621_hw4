@@ -175,7 +175,7 @@ insur_train_4 = insur_train_3 %>%
   select(-REVOKED)
 
 insur_train_5 = insur_train_4 %>%
-  mutate(is_red_car=ifelse(RED_CAR=="Yes", 1 , 0))%>%
+  mutate(is_red_car=ifelse(RED_CAR=="yes", 1 , 0))%>%
   select(-RED_CAR)
 
 insur_train_6 = insur_train_5 %>%
@@ -310,7 +310,7 @@ insur_test_2 = insur_test_1 %>%
 insur_test_3 = insur_test_2 %>%
   mutate(is_urban = ifelse(URBANICITY == "Highly Urban/ Urban", 1, 0)) %>%
   mutate(is_revoked = ifelse(REVOKED == "Yes", 1, 0)) %>%
-  mutate(is_red_car = ifelse(RED_CAR == "Yes", 1, 0)) %>%
+  mutate(is_red_car = ifelse(RED_CAR == "yes", 1, 0)) %>%
   mutate(is_single_parent = ifelse(PARENT1 == "Yes", 1, 0)) %>%
   mutate(is_married = ifelse(MSTATUS == "Yes", 1, 0)) %>%
   mutate(is_male = ifelse(SEX == "M", 1, 0)) %>%
