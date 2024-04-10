@@ -361,4 +361,103 @@ insur_test_clean=insur_test_16
 
 ## Part 3 - Build Models
 
+### Splitting the Dataframes
+
+```{r}
+insur_train_clean_lin = insur_train_clean %>%
+  dplyr::select(-TARGET_FLAG)
+  
+insur_train_clean_bin = insur_train_clean %>%
+  dplyr::select(-TARGET_AMT)
+```
+
+### Model 1: Multiple Linear Regression Model One
+
+```{r}
+base_model_1 = lm(TARGET_AMT ~ ., insur_train_clean_lin)
+
+step_backward = ols_step_backward_p(base_model)
+
+lin_model_1 = step_backward$model
+
+summary(model_1)
+```
+
+Here, we fit an initial linear regression model with all available predictors and then perform step-wise backward selection to remove predictors with non-significant p-values. This process helps in identifying a parsimonious model which only retains significant predictors for predicting the response variable based on p-value.
+
+This model does have an overall statistically significant p-value, but the $R^2$ value is less than desirable.
+
+### Model 2: Multiple Linear Regression Model Two
+
+```{r}
+base_model_2 <- lm(TARGET_AMT ~ ., data = insur_train_clean_lin)
+
+step_forward = ols_step_forward_p(base_model_2, 0.1, hierarchical = TRUE)
+
+lin_model_2 = step_forward$model
+
+summary(model_2)
+```
+
+Here, we fit an initial linear regression model with all available predictors. Again, we perform stepwise selection (this time forward) to add predictors with significant p-values. The key detail here is that we specified a significance level of 0.1 for adding predictors to the model and we set hierarchical = TRUE, which means that the step-wise procedure should consider the hierarchical relationships between predictors. (essentially, we consider the interdependence between predictor variables and avoid the inclusion of redundant or collinear predictors).
+
+Again, this model does have an overall statistically significant p-value, but the $R^2$ value is less than desirable.
+
+### Model 3: Binary Logistic Regression Model One
+
+```{r}
+base_bin_model <- glm(TARGET_FLAG ~ ., data = insur_train_clean_bin, family = binomial)
+
+step_aic = stepAIC(base_bin_model, direction = 'both')
+
+bin_model_1 = glm(formula = TARGET_FLAG ~ is_urban + is_revoked + is_single_parent + 
+    is_married + is_fam_car + is_higher_Ed + is_commercial + 
+    is_professional + log_INCOME + log_HOME_VAL + log_BLUEBOOK + 
+    log_OLDCLAIM + log_PCA_Score, family = binomial, data = insur_train_clean_bin)
+```
+
+For Model 3, I have also used a step-wise variable selection process, though this time the selection was conducted using the stepAIC function (steps are informed using the model's AIC value). I specified that steps can be taken in both directions.
+
+### Model 4: Binary Logistic Regression Model Two
+
+```{r}
+step(base_bin_model, 
+                scope = list(lower = TARGET_FLAG ~ 1, 
+                             upper = TARGET_FLAG ~ .),
+               direction = "both", k = log(nrow(na.omit(insur_train_clean_bin))))
+
+bin_model_2 = glm(formula = TARGET_FLAG ~ is_urban + is_revoked + is_single_parent + 
+    is_married + is_fam_car + is_higher_Ed + is_commercial + 
+    is_professional + log_INCOME + log_HOME_VAL + log_BLUEBOOK + 
+    log_PCA_Score, family = binomial, data = insur_train_clean_bin)
+```
+
+Now, considering that AIC step-wise variable selection has the tendency to include too many variables, for my next variable selection process, I opted for a BIC step wise variable selection approach. The AIC values associated with Model 3 and this model (Model 4) are rather comparable, meaning they have relatively similar goodness of fit as defined by AIC.
+
+### Model 5: Binary Logistic Regression Model Three
+
+```{r}
+missing_values <- colnames(insur_train_clean_bin)[apply(insur_train_clean_bin, 2, anyNA)]
+if (length(missing_values) > 0) {
+  cat("The following columns have missing values:", paste(missing_values, collapse = ", "), "\n")
+  insur_train_clean_bin <- na.omit(insur_train_clean_bin)
+}
+
+X <- as.matrix(insur_train_clean_bin[, -which(names(insur_train_clean_bin) == "TARGET_FLAG")])
+y <- insur_train_clean_bin$TARGET_FLAG
+
+cv_model <- cv.glmnet(X, y, family = "binomial", alpha = 1)
+
+plot(cv_model)
+
+optimal_lambda <- cv_model$lambda.min
+print(paste("Optimal lambda:", optimal_lambda))
+
+final_model <- glmnet(X, y, family = "binomial", alpha = 1, lambda = optimal_lambda)
+
+coef(final_model)
+```
+
+For the final model selection, I conducted a Lasso Regression.
+
 ## Part 4 - Select Models
