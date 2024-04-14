@@ -26,6 +26,7 @@ library(flexmix)
 library(knitr)
 library(pROC)
 library(glue)
+library(gt)
 ```
 
 ### Importing Datasets
@@ -36,8 +37,111 @@ insur_train_raw=read.csv(url("https://raw.githubusercontent.com/sleepysloth12/da
 
 insur_test=read.csv(url("https://github.com/sleepysloth12/data621_hw4/raw/main/insurance-evaluation-data.csv"))
 ```
+The objective for Assignment 4 is to build multiple linear regression and binary logistic regression models on the training data to predict the probability that a person will crash their car and also the amount of money it will cost if the person does crash their car.
 
 ## Part 1 - Data Exploration
+
+There are 8161 observations and 26 variables in the training dataset.There are two response variables: TARGET_FLAG, a “1” means that the person was in a car crash or a zero means that the person was not in a car crash; second response variable is TARGET_AMT, value is zero if the person did not crash their car or if they did crash their car, this number will be a value greater than zero. The following variables have missing values: 'AGE', 'YOJ' and 'CAR_AGE'. 
+
+```{r}
+dim(insur_train_raw)
+```
+```{r}
+colSums(is.na(insur_train_raw))
+```
+
+```{r}
+summary_stats = insur_train_raw %>%
+  summarise(
+    Mean_TARGET_FLAG = mean(TARGET_FLAG, na.rm = TRUE),
+    SD_TARGET_FLAG = sd(TARGET_FLAG, na.rm = TRUE),
+    Median_TARGET_FLAG = median(TARGET_FLAG, na.rm = TRUE),
+    Mean_TARGET_AMT = mean(TARGET_AMT, na.rm = TRUE),
+    SD_TARGET_AMT = sd(TARGET_AMT, na.rm = TRUE),
+    Median_TARGET_AMT = median(TARGET_AMT, na.rm = TRUE),
+    Mean_KIDSDRIV = mean(KIDSDRIV, na.rm = TRUE),
+    SD_KIDSDRIV = sd(KIDSDRIV, na.rm = TRUE),
+    Median_KIDSDRIV = median(KIDSDRIV, na.rm = TRUE),
+    Mean_AGE = mean(AGE, na.rm = TRUE),
+    SD_AGE = sd(AGE, na.rm = TRUE),
+    Median_AGE = median(AGE, na.rm = TRUE),
+    Mean_HOMEKIDS = mean(HOMEKIDS, na.rm = TRUE),
+    SD_HOMEKIDS = sd(HOMEKIDS, na.rm = TRUE),
+    Median_HOMEKIDS = median(HOMEKIDS, na.rm = TRUE),
+    Mean_YOJ= mean(YOJ, na.rm = TRUE),
+    SD_YOJ = sd(YOJ, na.rm = TRUE),
+    Median_YOJ = median(YOJ, na.rm = TRUE),
+    Mean_TRAVTIME = mean(TRAVTIME, na.rm = TRUE),
+    SD_TRAVTIME = sd(TRAVTIME, na.rm = TRUE),
+    Median_TRAVTIME = median(TRAVTIME, na.rm = TRUE),
+    Mean_TIF = mean(TIF, na.rm = TRUE),
+    SD_TIF= sd(TIF, na.rm = TRUE),
+    Median_TIF = median(TIF, na.rm = TRUE),
+    Mean_CLM_FREQ = mean(CLM_FREQ, na.rm = TRUE),
+    SD_CLM_FREQ = sd(CLM_FREQ, na.rm = TRUE),
+    Median_CLM_FREQ = median(CLM_FREQ, na.rm = TRUE),
+    Mean_MVR_PTS = mean(MVR_PTS, na.rm = TRUE),
+    SD_MVR_PTS = sd(MVR_PTS, na.rm = TRUE),
+    Median_MVR_PTS = median(MVR_PTS, na.rm = TRUE),
+    Mean_CAR_AGE = mean(CAR_AGE, na.rm = TRUE),
+    SD_CAR_AGE = sd(CAR_AGE, na.rm = TRUE),
+    Median_CAR_AGE = median(CAR_AGE, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "Statistic", values_to = "Value") %>%
+  separate(Statistic, into = c("Measure", "Variable"), sep = "_",extra = "merge") %>%
+  pivot_wider(names_from = Measure, values_from = Value) %>%
+  dplyr::select(Variable, Mean, SD, Median) %>%
+  mutate(Variable = case_when(
+    Variable == "TARGET_FLAG" ~ "Was Car in a crash? 1=YES 0=NO",
+    Variable == "TARGET_AMT" ~ "If car was in a crash, what was the cost",
+    Variable == "KIDSDRIV" ~ "Number of Driving Children",
+    Variable == "AGE" ~ "Age of Driver",
+    Variable == "HOMEKIDS" ~ "Number of Children at Home",
+    Variable == "YOJ" ~ "Years on Job",
+    Variable == "TRAVTIME" ~ "Distance to Work",
+    Variable == "TIF" ~ "Time in Force ",
+    Variable == "CLM_FREQ" ~ "# Claims (Past 5 Years)",
+    Variable == "MVR_PTS" ~ "Motor Vehicle Record Points",
+    Variable == "CAR_AGE" ~ "Vehicle Age",
+    TRUE ~ Variable
+  ))
+summary_stats %>%
+  gt() %>%
+  tab_header(
+    title = "Summary Statistics of Predictor Variables"
+  ) %>%
+  cols_label(
+    Variable = "Variable",
+    Mean = "Mean",
+    SD = "Standard Deviation",
+    Median = "Median"
+  )
+
+```
+```{r}
+prop.table(table(insur_train_raw$TARGET_FLAG))
+```
+-   **TARGET_FLAG**: or was car in a crash, exhibits low mean and median as it is a binary variable. About 26% of the customers in the dataset reflect that the car was in a crash and the remaining 74% were not in a crash. 
+-   **TARGET_AMOUNT**: or cost of the crash, has a right-skewed distribution. The large standard deviation reflects that there is a lot of variability in the cost. 
+-   **KIDSDRIV**: or children driving in the household, has a right-skewed distribution, while there is a bit of variability, and some households have up to 3 children driving, majority of households have 0 children driving. 
+-   **AGE** of the driver: has a symmetric distribution around the central tendency, this is confirmed with the mean and median at around age 45, with moderate variability. 
+-  **HOMEKIDS**: number of children at home has a right-skewed distribution, while there are up to 5 kids at home for some customers, the majority of them do not have children at home. 
+-  **YOJ**: years on the job, appears to be mostly normal, with data points symmetrically distributed around the central tendency. However, there is a slight right skew caused by one column that has a higher frequency of values on the 0 year mark.
+-  **TRAVTIME**: distance to work has a right-skew distribution likely due to high variability as the mean and median have similar values. 
+-  **TIF**: the amount of time people have been customers for is has a right-skew distribution, while the average customer has been with the same auto insurance about 5 years, there is a mix of newer and older customers. 
+-  **CLM_FREQ** number of claims in the past 5 years: has a right-skew distribution, while many had 0 claims, there is moderate variability. 
+-  **MVR_PTS** Motor Vehicle Record Points: has a right-skew distribution, while the mean and median are close in value, there is some variability.
+-  **CAR_AGE**  has a right-skew distribution, while there is moderate variability the mean and median are close in value; however, some invalid values of negative years might be impacting the distribution. 
+
+```{r}
+insur_train_raw %>% 
+  dplyr::select(-TARGET_FLAG, -INDEX) %>%
+  keep(is.numeric) %>%
+  gather() %>% 
+  ggplot(aes(x= value)) + 
+  geom_histogram() + 
+  facet_wrap(~key, scales = 'free')
+```
 
 ```{r}
 
