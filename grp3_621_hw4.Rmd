@@ -1,6 +1,6 @@
 ---
 title: "Data 621 HW 4"
-author: 'Group #3'
+author: 'Group #3- Coco Donovan, Matthew Roland, Marjete Vucinaj, Jean Jimenez'
 date: "2024-04-07"
 output: pdf_document
 ---
