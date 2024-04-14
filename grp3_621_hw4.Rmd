@@ -270,7 +270,7 @@ mean_home_val = mean(insur_train_14$HOME_VAL, na.rm = TRUE)
 insur_train_15 = insur_train_14 %>%
   mutate(
     INCOME = ifelse(is.na(INCOME), median_income, INCOME),
-    HOME_VAL = ifelse(is.na(HOME_VAL), median_home_val, HOME_VAL)
+    HOME_VAL = ifelse(is.na(HOME_VAL), mean_home_val, HOME_VAL)
   )
 ```
 
